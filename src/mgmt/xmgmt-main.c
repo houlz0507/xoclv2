@@ -497,13 +497,22 @@ static int xmgmt_create_blp(struct xmgmt_main *xmm)
 	struct platform_device *pdev = xmm->pdev;
 	int rc = 0;
 	char *dtb = NULL;
+	const char *provider = xmgmt_get_axlf_firmware(xmm, XMGMT_BLP);
 
 	dtb = xmgmt_get_dtb(pdev, XMGMT_BLP);
 	if (dtb) {
 		rc = xmgmt_xclbin_process(xmm->pdev, xmm->fmgr,
-			xmm->firmware_ulp, XMGMT_BLP);
-		if (rc)
-			xrt_err(pdev, "failed to create BLP: %d", rc);
+			provider, XMGMT_BLP);
+		if (rc) {
+			xrt_err(pdev, "failed to process BLP: %d", rc);
+			goto failed;
+		}
+
+		rc = xrt_subdev_create_partition(pdev, dtb);
+		if (rc < 0)
+			xrt_err(pdev, "failed to create BLP part: %d", rc);
+		else
+			rc = 0;
 
 		BUG_ON(xmm->blp_intf_uuids);
 		xrt_md_get_intf_uuids(&pdev->dev, dtb,
@@ -516,6 +525,7 @@ static int xmgmt_create_blp(struct xmgmt_main *xmm)
 		}
 	}
 
+failed:
 	vfree(dtb);
 	return rc;
 }

@@ -76,6 +76,8 @@ static void xmgmt_destroy_bridge(struct fpga_bridge *br)
 {
 	struct xmgmt_bridge *br_data = br->priv;
 
+	xrt_info(br_data->pdev, "destroy fpga bridge %s",
+		br_data->axigate_name);
 	fpga_bridge_unregister(br);
 
 	if (br_data)
@@ -110,8 +112,8 @@ static struct fpga_bridge *xmgmt_create_bridge(struct platform_device *pdev,
 		goto failed;
 	}
 
-	br = fpga_bridge_create(DEV(pdev), "xmgmt bridge", &xmgmt_bridge_ops,
-		br_data);
+	br = fpga_bridge_create(DEV(pdev), br_data->axigate_name,
+		&xmgmt_bridge_ops, br_data);
 	if (!br) {
 		xrt_err(pdev, "failed to create bridge");
 		goto failed;
@@ -123,6 +125,7 @@ static struct fpga_bridge *xmgmt_create_bridge(struct platform_device *pdev,
 		goto failed;
 	}
 
+	xrt_info(pdev, "created fpga bridge %s", br_data->axigate_name);
 
 	return br;
 
@@ -138,6 +141,9 @@ failed:
 static void xmgmt_destroy_region(struct fpga_region *re)
 {
 	struct xmgmt_region *r_data = re->priv;
+
+	xrt_info(r_data->pdev, "destroy fpga region %llx%llx",
+		re->compat_id->id_l, re->compat_id->id_h);
 
 	fpga_region_unregister(re);
 
@@ -220,7 +226,7 @@ static void xmgmt_region_cleanup(struct fpga_region *re)
 	struct xmgmt_region_match_arg arg;
 	LIST_HEAD(free_list);
 
-	list_add_tail(&free_list, &r_data->list);
+	list_add_tail(&r_data->list, &free_list);
 	arg.pdev = pdev;
 	arg.uuid_num = 1;
 
@@ -230,7 +236,7 @@ static void xmgmt_region_cleanup(struct fpga_region *re)
 			xmgmt_region_match_by_depuuid);
 		if (match_re) {
 			r_data = match_re->priv;
-			list_add_tail(&free_list, &r_data->list);
+			list_add_tail(&r_data->list, &free_list);
 			start_dev = &match_re->dev;
 			put_device(&match_re->dev);
 			continue;
@@ -267,7 +273,7 @@ void xmgmt_region_cleanup_all(struct platform_device *pdev)
 
 	for (base_re = fpga_region_class_find(NULL, &arg,
 	    xmgmt_region_match_base);
-	    !base_re;
+	    base_re;
 	    base_re = fpga_region_class_find(NULL, &arg,
 	    xmgmt_region_match_base)) {
 		put_device(&base_re->dev);
@@ -307,7 +313,7 @@ static int xmgmt_region_program(struct fpga_region *re, const void *xclbin)
 static int xmgmt_get_bridges(struct fpga_region *re)
 {
 	struct xmgmt_region *r_data = re->priv;
-	struct device *dev = &r_data->fbridge->dev;
+	struct device *dev = &r_data->pdev->dev;
 
 	return fpga_bridge_get_to_list(dev, re->info, &re->bridge_list);
 }
@@ -429,6 +435,9 @@ int xmgmt_xclbin_process(struct platform_device *pdev,
 			devm_kfree(DEV(pdev), r_data);
 			goto failed;
 		}
+
+		xrt_info(pdev, "created fpga region %llx%llx",
+			re->compat_id->id_l, re->compat_id->id_h);
 	}
 
 failed:

@@ -12,7 +12,6 @@ fdtdir := $(commondir)/libfdt
 xmgmt-y := xmgmt-root.o				\
 	   xmgmt-main.o				\
 	   xmgmt-fmgr-drv.o      		\
-	   xmgmt-main-ulp.o			\
 	   xmgmt-main-mailbox.o			\
 	   xmgmt-fpga-region.o			\
 	   $(commondir)/xrt-root.o		\
