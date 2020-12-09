@@ -167,7 +167,7 @@ static int xmgmt_region_match(struct device *dev, const void *data)
 		return false;
 
 	match_re = to_fpga_region(dev);
-	for(i = 0; i < arg->uuid_num; i++) {
+	for (i = 0; i < arg->uuid_num; i++) {
 		if (!memcmp(match_re->compat_id, &arg->uuids[i],
 		    sizeof(*match_re->compat_id)))
 			return true;
