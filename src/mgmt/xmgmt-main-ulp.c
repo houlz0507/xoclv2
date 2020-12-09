@@ -20,7 +20,7 @@
 #include "xrt-icap.h"
 #include "xrt-axigate.h"
 
-static int xmgmt_download_bitstream(struct platform_device  *pdev,
+int xmgmt_download_bitstream(struct platform_device  *pdev,
 	const void *xclbin)
 {
 	struct platform_device *icap_leaf = NULL;

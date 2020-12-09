@@ -34,6 +34,7 @@ struct xmgmt_main {
 	bool flash_ready;
 	bool gpio_ready;
 	struct fpga_manager *fmgr;
+	void *region_hdl;
 	void *mailbox_hdl;
 	struct mutex busy_mutex;
 
@@ -234,7 +235,8 @@ static ssize_t ulp_image_write(struct file *filp, struct kobject *kobj,
 	len = xclbin->m_header.m_length;
 	if (off + count >= len && off < len) {
 		memcpy(xmm->firmware_ulp + off, buffer, len - off);
-		xmgmt_ulp_download(xmm->pdev, xmm->firmware_ulp);
+		xmgmt_xclbin_process(xmm->pdev, xmm->fmgr, xmm->firmware_ulp,
+			XMGMT_ULP);
 	} else if (off + count < len) {
 		memcpy(xmm->firmware_ulp + off, buffer, count);
 	}
@@ -498,11 +500,10 @@ static int xmgmt_create_blp(struct xmgmt_main *xmm)
 
 	dtb = xmgmt_get_dtb(pdev, XMGMT_BLP);
 	if (dtb) {
-		rc = xrt_subdev_create_partition(pdev, dtb);
-		if (rc < 0)
+		rc = xmgmt_xclbin_process(xmm->pdev, xmm->fmgr,
+			xmm->firmware_ulp, XMGMT_BLP);
+		if (rc)
 			xrt_err(pdev, "failed to create BLP: %d", rc);
-		else
-			rc = 0;
 
 		BUG_ON(xmm->blp_intf_uuids);
 		xrt_md_get_intf_uuids(&pdev->dev, dtb,
@@ -614,6 +615,7 @@ static int xmgmt_main_remove(struct platform_device *pdev)
 	vfree(xmm->firmware_blp);
 	vfree(xmm->firmware_plp);
 	vfree(xmm->firmware_ulp);
+	xmgmt_region_cleanup_all(pdev);
 	(void) xmgmt_fmgr_remove(xmm->fmgr);
 	xmgmt_mailbox_remove(xmm->mailbox_hdl);
 	(void) sysfs_remove_group(&DEV(pdev)->kobj, &xmgmt_main_attrgroup);
@@ -686,7 +688,6 @@ static int xmgmt_bitstream_axlf_fpga_mgr(struct xmgmt_main *xmm,
 	void *axlf, size_t size)
 {
 	int ret;
-	struct fpga_image_info info = { 0 };
 
 	BUG_ON(!mutex_is_locked(&xmm->busy_mutex));
 
@@ -697,9 +698,7 @@ static int xmgmt_bitstream_axlf_fpga_mgr(struct xmgmt_main *xmm,
 	vfree(xmm->firmware_ulp);
 	xmm->firmware_ulp = NULL;
 
-	info.buf = (char *)axlf;
-	info.count = size;
-	ret = fpga_mgr_load(xmm->fmgr, &info);
+	ret = xmgmt_xclbin_process(xmm->pdev, xmm->fmgr, axlf, XMGMT_ULP);
 	if (ret == 0)
 		xmm->firmware_ulp = axlf;
 

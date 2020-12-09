@@ -24,6 +24,11 @@ enum provider_kind {
 	XMGMT_ULP,
 };
 
+enum region {
+	XMGMT_REGION_ULP,
+	XMGMT_REGION_MAX
+};
+
 struct xrt_mgmt_main_ioctl_get_axlf_section {
 	enum provider_kind xmmigas_axlf_kind;
 	enum axlf_section_kind xmmigas_section_kind;

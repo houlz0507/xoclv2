@@ -14,6 +14,7 @@ xmgmt-y := xmgmt-root.o				\
 	   xmgmt-fmgr-drv.o      		\
 	   xmgmt-main-ulp.o			\
 	   xmgmt-main-mailbox.o			\
+	   xmgmt-fpga-region.o			\
 	   $(commondir)/xrt-root.o		\
 	   $(commondir)/xrt-metadata.o		\
 	   $(commondir)/xrt-xclbin.o		\
