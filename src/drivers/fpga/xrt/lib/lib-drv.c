@@ -9,6 +9,7 @@
 
 #include <linux/module.h>
 #include <linux/vmalloc.h>
+#include <linux/slab.h>
 #include "xleaf.h"
 #include "xroot.h"
 #include "lib-drv.h"
@@ -68,7 +69,7 @@ static int xrt_bus_remove(struct device *dev)
 	return 0;
 }
 
-static struct bus_type xrt_bus_type = {
+struct bus_type xrt_bus_type = {
 	.name		= "xrt",
 	.match		= xrt_bus_match,
 	.probe		= xrt_bus_probe,
@@ -271,7 +272,10 @@ struct resource *xrt_get_resource(struct xrt_device *xdev, u32 type, u32 num)
 	return NULL;
 }
 
-/* Leaf driver's module init/fini callbacks. */
+/*
+ * Leaf driver's module init/fini callbacks. This is not a open infrastructure for dynamic
+ * plugging in drivers. All drivers should be statically added.
+ */
 static void (*leaf_init_fini_cbs[])(bool) = {
 	group_leaf_init_fini,
 	vsec_leaf_init_fini,
