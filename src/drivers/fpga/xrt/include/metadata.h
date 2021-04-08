@@ -169,23 +169,23 @@ char *xrt_md_dup(struct device *dev, const char *blob);
 int xrt_md_add_endpoint(struct device *dev, char *blob,
 			struct xrt_md_endpoint *ep);
 int xrt_md_del_endpoint(struct device *dev, char *blob, const char *ep_name,
-			const char *regmap_name);
+			const char *compat);
 int xrt_md_get_prop(struct device *dev, const char *blob, const char *ep_name,
-		    const char *regmap_name, const char *prop,
+		    const char *compat, const char *prop,
 		    const void **val, int *size);
 int xrt_md_set_prop(struct device *dev, char *blob, const char *ep_name,
-		    const char *regmap_name, const char *prop,
+		    const char *compat, const char *prop,
 		    const void *val, int size);
 int xrt_md_copy_endpoint(struct device *dev, char *blob, const char *src_blob,
-			 const char *ep_name, const char *regmap_name,
+			 const char *ep_name, const char *compat,
 			 const char *new_ep_name);
 int xrt_md_get_next_endpoint(struct device *dev, const char *blob,
-			     const char *ep_name,  const char *regmap_name,
-			     char **next_ep, char **next_regmap);
+			     const char *ep_name,  const char *compat,
+			     char **next_ep, char **next_compat);
 int xrt_md_get_compatible_endpoint(struct device *dev, const char *blob,
-				   const char *regmap_name, const char **ep_name);
+				   const char *compat, const char **ep_name);
 int xrt_md_find_endpoint(struct device *dev, const char *blob,
-			 const char *ep_name, const char *regmap_name,
+			 const char *ep_name, const char *compat,
 			 const char **epname);
 int xrt_md_pack(struct device *dev, char *blob);
 int xrt_md_get_interface_uuids(struct device *dev, const char *blob,

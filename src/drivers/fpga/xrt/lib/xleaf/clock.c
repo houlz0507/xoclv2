@@ -630,7 +630,7 @@ failed:
 static struct xrt_dev_endpoints xrt_clock_endpoints[] = {
 	{
 		.xse_names = (struct xrt_dev_ep_names[]) {
-			{ .regmap_name = "clkwiz" },
+			{ .compat = "clkwiz" },
 			{ NULL },
 		},
 		.xse_min_ep = 1,

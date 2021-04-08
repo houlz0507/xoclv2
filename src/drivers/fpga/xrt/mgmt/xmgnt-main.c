@@ -41,7 +41,6 @@ struct xmgmt_main {
 	struct fpga_manager *fmgr;
 	void *mailbox_hdl;
 	struct mutex lock; /* busy lock */
-
 	uuid_t *blp_interface_uuids;
 	u32 blp_interface_uuid_num;
 };
