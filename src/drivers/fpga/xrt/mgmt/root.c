@@ -315,11 +315,12 @@ static struct xroot_physical_function_callback xmgmt_xroot_pf_cb = {
 
 static int xmgmt_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
-	int ret;
 	struct device *dev = &pdev->dev;
-	struct xmgmt *xm = devm_kzalloc(dev, sizeof(*xm), GFP_KERNEL);
 	char *dtb = NULL;
+	int ret;
+	struct xmgmt *xm;
 
+	xm  = devm_kzalloc(dev, sizeof(*xm), GFP_KERNEL);
 	if (!xm)
 		return -ENOMEM;
 	xm->pdev = pdev;

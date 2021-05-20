@@ -113,5 +113,7 @@ bool xroot_wait_for_bringup(void *root);
 int xroot_create_group(void *xr, char *dtb);
 int xroot_add_simple_node(void *root, char *dtb, const char *endpoint);
 void xroot_broadcast(void *root, enum xrt_events evt);
+int xroot_create_root_metadata(void *root, u64 vsec_off, u32 vsec_bar_idx,
+			       const char *main_endpoint, char **root_dtb);
 
 #endif	/* _XRT_ROOT_H_ */
