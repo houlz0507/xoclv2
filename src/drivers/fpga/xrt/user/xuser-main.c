@@ -45,6 +45,38 @@ static const struct attribute_group xuser_main_attrgroup = {
 	.attrs = xuser_main_attrs,
 };
 
+static void xuser_main_event_cb(struct xrt_device *xdev, void *arg)
+{
+	struct xrt_event *evt = (struct xrt_event *)arg;
+	struct xuser_main *xum = xrt_get_drvdata(xdev);
+	enum xrt_events e = evt->xe_evt;
+	enum xrt_subdev_id id;
+	char *dtb;
+	int ret;
+
+	id = evt->xe_subdev.xevt_subdev_id;
+	switch (e) {
+	case XRT_EVENT_POST_CREATION:
+		/* user driver finishes attaching, get its partition metadata */
+		if (id == XRT_ROOT) {
+			ret = xuser_peer_get_metadata(xum->mailbox_hdl, &dtb)
+			if (ret) {
+				xrt_err(xdev, "failed to get metadata, ret %d", ret);
+				break;
+			}
+			ret = xleaf_create_group(xdev, dtb);
+			if (ret < 0) {
+				xrt_err(xdev, "failed to create group, ret %d", ret);
+				break;
+			}
+		}
+		break;
+	default:
+		xrt_dbg(xdev, "ignored event %d", e);
+		break;
+	}
+}
+
 static int xuser_main_probe(struct xrt_device *xdev)
 {
 	struct xuser_main *xum;
@@ -85,6 +117,7 @@ static int xuser_mainleaf_call(struct xrt_device *xdev, u32 cmd, void *arg)
 	switch (cmd) {
 	case XRT_XLEAF_EVENT:
 		xuser_mailbox_event_cb(xdev, arg);
+		xuser_main_event_cb(xdev, arg);
 		break;
 	default:
 		xrt_err(xdev, "unknown cmd: %d", cmd);

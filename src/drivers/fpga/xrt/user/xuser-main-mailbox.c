@@ -304,6 +304,60 @@ static const struct attribute_group xuser_mailbox_attrgroup = {
         .attrs = xuser_mailbox_attrs,
 };
 
+int xuser_peer_get_metadata(void *handle, char **dtb)
+{
+	struct xuser_mailbox *xmbx = (struct xuser_mailbox)handle;
+	struct xcl_mailbox_subdev_peer subdev_peer = {0};
+	struct xcl_mailbox_req *mb_req = NULL;
+	size_t data_len, reqlen, offset = 0;
+	struct xcl_subdev *resp = NULL;
+	u32 dtb_len;
+	char *tmp;
+	int ret;
+
+	data_len = sizeof(struct xcl_mailbox_subdev_peer);
+	reqlen = sizeof(struct xcl_mailbox_req) + data_len;
+	*dtb = NULL;
+
+	mb_req = vzalloc(reqlen);
+	if (!mb_req) {
+		ret = -ENOMEM;
+		goto faile;
+	}
+
+	resp = vzalloc(resp_len);
+	if (!resp) {
+		ret = -ENOMEM;
+		goto failed;
+	}
+
+	mb_req->req = XCL_MAILBOX_REQ_PEER_DATA;
+
+	subdev_peer.size = resp_len;
+	subdev_peer.kind = XCL_SUBDEV;
+	subdev_peer.entries = 1;
+	memcpy(mb_req->data, &subdev_peer, data_len);
+
+	do {
+		tmp = vzalloc(offset + resp_len);
+		if (!tmp) {
+			ret = -ENOMEM;
+			goto failed;
+		}
+
+		if (*dtb) {
+			memcpy(tmp, *dtb, offset);
+			vfree(*dtb);
+		}
+		*dtb = tmp;
+		dtb_len = offset + resp_len;
+
+		subdev_peer.offset = offset;
+		
+		
+	} while (resp->rtncode == XOCL_MSG_SUBDEV_RTN_PARTIAL);
+}
+
 void *xuser_mailbox_probe(struct xrt_device *xdev)
 {
 	struct xuser_mailbox *xmbx = devm_kzalloc(DEV(xdev), sizeof(*xmbx), GFP_KERNEL);
