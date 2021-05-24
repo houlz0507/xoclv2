@@ -15,7 +15,7 @@
  * pcie firewall driver leaf calls.
  */
 enum xrt_pcie_firewall_cmd {
-        XRT_PFW_UNBLOCK = XRT_XLEAF_CUSTOM_BASE, /* See comments in xleaf.h */
+	XRT_PFW_UNBLOCK = XRT_XLEAF_CUSTOM_BASE, /* See comments in xleaf.h */
 };
 
 struct xrt_pcie_firewall_unblock {

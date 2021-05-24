@@ -41,7 +41,7 @@ XRT_DEFINE_REGMAP_CONFIG(pfw_regmap_config);
 struct xrt_pfw {
 	struct xrt_device	*xdev;
 	struct regmap		*regmap;
-	struct mutex		pfw_lock;
+	struct mutex		pfw_lock; /* register access lock */
 };
 
 static int xrt_pfw_unblock(struct xrt_pfw *pfw, struct xrt_pcie_firewall_unblock *arg)
@@ -135,24 +135,24 @@ failed:
 }
 
 static struct xrt_dev_endpoints xrt_pfw_endpoints[] = {
-        {
-                .xse_names = (struct xrt_dev_ep_names[]) {
-                        { .ep_name = XRT_MD_NODE_PCIE_FIREWALL },
-                        { NULL },
-                },
-                .xse_min_ep = 1,
-        },
-        { 0 },
+	{
+		.xse_names = (struct xrt_dev_ep_names[]) {
+			{ .ep_name = XRT_MD_NODE_PCIE_FIREWALL },
+			{ NULL },
+		},
+		.xse_min_ep = 1,
+	},
+	{ 0 },
 };
 
 static struct xrt_driver xrt_pfw_driver = {
-        .driver = {
-                .name = XRT_PCIE_FIREWALL,
-        },
-        .subdev_id = XRT_SUBDEV_PCIE_FIREWALL,
-        .endpoints = xrt_pfw_endpoints,
-        .probe = xrt_pfw_probe,
-        .leaf_call = xrt_pfw_leaf_call,
+	.driver = {
+		.name = XRT_PCIE_FIREWALL,
+	},
+	.subdev_id = XRT_SUBDEV_PCIE_FIREWALL,
+	.endpoints = xrt_pfw_endpoints,
+	.probe = xrt_pfw_probe,
+	.leaf_call = xrt_pfw_leaf_call,
 };
 
 XRT_LEAF_INIT_FINI_FUNC(pfw);
