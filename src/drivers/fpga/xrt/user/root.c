@@ -167,7 +167,7 @@ static int xuser_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	ret = xroot_create_group(xu->root, dtb);
 	vfree(dtb);
-	if (ret)
+	if (ret < 0)
 		xuser_err(xu, "failed to create root group: %d", ret);
 
 	if (!xroot_wait_for_bringup(xu->root))

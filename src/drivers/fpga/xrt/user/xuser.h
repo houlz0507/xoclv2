@@ -12,6 +12,7 @@
 void *xuser_mailbox_probe(struct xrt_device *xdev);
 void xuser_mailbox_remove(void *handle);
 void xuser_mailbox_event_cb(struct xrt_device *xdev, void *arg);
+int xuser_peer_get_metadata(void *handle, char **dtb);
 
 void *xuser_xdev2mailbox(struct xrt_device *xdev);
 int xuser_register_leaf(void);

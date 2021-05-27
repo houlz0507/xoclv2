@@ -793,7 +793,7 @@ static int xmgmt_mailbox_get_test_msg(struct xmgmt_mailbox *xmbx, bool sw_ch,
 	}
 	mutex_unlock(&xmbx->lock);
 
-	if (rc == 0)
+	if (!rc)
 		*len = leaf_req.xmir_resp_size;
 	return rc;
 }

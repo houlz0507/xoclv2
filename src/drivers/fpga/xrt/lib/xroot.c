@@ -405,6 +405,15 @@ static int xroot_root_cb(struct device *dev, void *parg, enum xrt_root_cmd cmd, 
 		}
 		break;
 	}
+	case XRT_ROOT_CONFIG_PCI: {
+		if (xr->pf_cb.xpc_config_pci) {
+			rc = xr->pf_cb.xpc_config_pci(xr->dev, arg);
+		} else {
+			xroot_err(xr, "config pci is not supported");
+			rc = -EOPNOTSUPP;
+		}
+		break;
+	}
 
 	default:
 		xroot_err(xr, "unknown IOCTL cmd %d", cmd);

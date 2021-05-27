@@ -15,6 +15,8 @@
 #include "xuser.h"
 #include "xleaf/mailbox.h"
 
+#define XUSER_MSG_SUBDEV_DATA_LEN	(512 * 1024)
+
 struct xuser_mailbox {
 	struct xrt_device *xdev;
 	struct xrt_device *mailbox;
@@ -66,13 +68,7 @@ static void xuser_mailbox_post(struct xuser_mailbox *xmbx,
 	struct xrt_mailbox_post post = { 0 };
 	int rc;
 
-	post.xmip_req_id = msgid;
-	post.xmip_sw_ch = sw_ch;
-	post.xmip_data = buf;
-	post.xmip_data_size = len;
-
 	WARN_ON(!mutex_is_locked(&xmbx->lock));
-
 	if (!xmbx->mailbox) {
 		xrt_err(xmbx->xdev, "mailbox not available");
 		return;
@@ -83,9 +79,46 @@ static void xuser_mailbox_post(struct xuser_mailbox *xmbx,
 	else
 		xuser_mailbox_prt_resp(xmbx, &post);
 
+	post.xmip_req_id = msgid;
+	post.xmip_sw_ch = sw_ch;
+	post.xmip_data = buf;
+	post.xmip_data_size = len;
+
 	rc = xleaf_call(xmbx->mailbox, XRT_MAILBOX_POST, &post);
 	if (rc && rc != -ESHUTDOWN)
 		xrt_err(xmbx->xdev, "failed to post msg: %d", rc);
+}
+
+static int xuser_mailbox_request(struct xuser_mailbox *xmbx,
+				 void *request, size_t request_len,
+				 void *response, size_t response_len,
+				 size_t *actual_response_len)
+{
+	struct xrt_mailbox_request req = { 0 };
+	int rc;
+
+	*actual_response_len = 0;
+	if (!xmbx->mailbox) {
+		xrt_err(xmbx->xdev, "mailbox not available");
+		return -ENODEV;
+	}
+
+	req.xmir_sw_ch = false;
+	req.xmir_resp_ttl = 1;
+	req.xmir_req = request;
+	req.xmir_req_size = request_len;
+	req.xmir_resp = response;
+	req.xmir_resp_size = response_len;
+
+	mutex_lock(&xmbx->lock);
+	XUSER_MAILBOX_PRT_REQ_SEND(xmbx, (struct xcl_mailbox_req *)request, req.xmir_sw_ch);
+	rc = xleaf_call(xmbx->mailbox, XRT_MAILBOX_REQUEST, &req);
+	mutex_unlock(&xmbx->lock);
+
+	if (!rc)
+		*actual_response_len = req.xmir_resp_size;
+
+	return rc;
 }
 
 static void xuser_mailbox_respond(struct xuser_mailbox *xmbx,
@@ -121,11 +154,14 @@ static void xuser_mailbox_resp_test_msg(struct xuser_mailbox *xmbx, u64 msgid, b
 static void xuser_mailbox_proc_mgmt_state(struct xuser_mailbox *xmbx,
 					  struct xcl_mailbox_req *req, u64 msgid, bool sw_ch)
 {
+	struct xrt_device *xdev = xmbx->xdev;
 	struct xcl_mailbox_peer_state *st;
 
 	st = (struct xcl_mailbox_peer_state *)req->data;
-	if (st->state_flags & XCL_MB_STATE_ONLINE) {
-	}
+	if (st->state_flags & XCL_MB_STATE_ONLINE)
+		xleaf_broadcast_event(xdev, XRT_EVENT_PEER_ONLINE, true);
+	else if (st->state_flags & XCL_MB_STATE_OFFLINE)
+		xleaf_broadcast_event(xdev, XRT_EVENT_PEER_OFFLINE, true);
 }
 
 static void xuser_mailbox_listener(void *arg, void *data, size_t len,
@@ -306,29 +342,30 @@ static const struct attribute_group xuser_mailbox_attrgroup = {
 
 int xuser_peer_get_metadata(void *handle, char **dtb)
 {
-	struct xuser_mailbox *xmbx = (struct xuser_mailbox)handle;
-	struct xcl_mailbox_subdev_peer subdev_peer = {0};
+	size_t data_len, reqlen, resp_len, actual_resp_len, offset = 0;
+	struct xuser_mailbox *xmbx = (struct xuser_mailbox *)handle;
+	struct xcl_mailbox_peer_data subdev_peer = {0};
 	struct xcl_mailbox_req *mb_req = NULL;
-	size_t data_len, reqlen, offset = 0;
+	struct xrt_device *xdev = xmbx->xdev;
 	struct xcl_subdev *resp = NULL;
-	u32 dtb_len;
 	char *tmp;
 	int ret;
 
-	data_len = sizeof(struct xcl_mailbox_subdev_peer);
-	reqlen = sizeof(struct xcl_mailbox_req) + data_len;
 	*dtb = NULL;
 
-	mb_req = vzalloc(reqlen);
+	data_len = sizeof(struct xcl_mailbox_peer_data);
+	reqlen = sizeof(struct xcl_mailbox_req) + data_len;
+	mb_req = kzalloc(reqlen, GFP_KERNEL);
 	if (!mb_req) {
 		ret = -ENOMEM;
-		goto faile;
+		goto out;
 	}
 
+	resp_len = sizeof(*resp) + XUSER_MSG_SUBDEV_DATA_LEN;
 	resp = vzalloc(resp_len);
 	if (!resp) {
 		ret = -ENOMEM;
-		goto failed;
+		goto out;
 	}
 
 	mb_req->req = XCL_MAILBOX_REQ_PEER_DATA;
@@ -342,7 +379,7 @@ int xuser_peer_get_metadata(void *handle, char **dtb)
 		tmp = vzalloc(offset + resp_len);
 		if (!tmp) {
 			ret = -ENOMEM;
-			goto failed;
+			goto out;
 		}
 
 		if (*dtb) {
@@ -350,12 +387,35 @@ int xuser_peer_get_metadata(void *handle, char **dtb)
 			vfree(*dtb);
 		}
 		*dtb = tmp;
-		dtb_len = offset + resp_len;
 
 		subdev_peer.offset = offset;
-		
-		
-	} while (resp->rtncode == XOCL_MSG_SUBDEV_RTN_PARTIAL);
+		ret = xuser_mailbox_request(xmbx, mb_req, reqlen, resp, resp_len, &actual_resp_len);
+		if (ret)
+			goto out;
+		if (offset != resp->offset) {
+			ret = -EINVAL;
+			goto out;
+		}
+
+		memcpy(*dtb, resp->data, resp->size);
+		offset += resp->size;
+	} while (resp->rtncode == XRT_MSG_SUBDEV_RTN_PARTIAL);
+
+	if (resp->rtncode != XRT_MSG_SUBDEV_RTN_COMPLETE) {
+		xrt_err(xdev, "invalid return code %d", resp->rtncode);
+		ret = -EINVAL;
+		goto out;
+	}
+
+out:
+	if (ret || !offset) {
+		vfree(*dtb);
+		*dtb = NULL;
+	}
+	kfree(mb_req);
+	vfree(resp);
+
+	return ret;
 }
 
 void *xuser_mailbox_probe(struct xrt_device *xdev)

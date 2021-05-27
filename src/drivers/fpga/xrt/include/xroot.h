@@ -43,6 +43,7 @@ enum xrt_root_cmd {
 	/* Misc. */
 	XRT_ROOT_HOT_RESET,
 	XRT_ROOT_HWMON,
+	XRT_ROOT_CONFIG_PCI,
 };
 
 struct xrt_root_get_leaf {
@@ -90,6 +91,11 @@ struct xrt_root_hwmon {
 	struct device *xpih_hwmon_dev;
 };
 
+struct xrt_root_config_pci {
+	u32 xpicp_opcode;
+	void *xpicp_data;
+};
+
 /*
  * Callback for leaf to make a root request. Arguments are: parent device, parent cookie, req,
  * and arg.
@@ -105,6 +111,7 @@ struct xroot_physical_function_callback {
 	void (*xpc_get_id)(struct device *dev, struct xrt_root_get_id *rid);
 	int (*xpc_get_resource)(struct device *dev, struct xrt_root_get_res *res);
 	void (*xpc_hot_reset)(struct device *dev);
+	int (*xpc_config_pci)(struct device *dev, struct xrt_root_config_pci *config);
 };
 
 int xroot_probe(struct device *dev, struct xroot_physical_function_callback *cb, void **root);

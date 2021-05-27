@@ -803,6 +803,12 @@ void xleaf_hot_reset(struct xrt_device *xdev)
 }
 EXPORT_SYMBOL_GPL(xleaf_hot_reset);
 
+int xleaf_config_pci(struct xrt_device *xdev, void *arg)
+{
+	xrt_subdev_root_request(xdev, XRT_ROOT_CONFIG_PCI, arg);
+}
+EXPORT_SYMBOL_GPL(xleaf_config_pci);
+
 void xleaf_get_root_res(struct xrt_device *xdev, u32 region_id, struct resource **res)
 {
 	struct xrt_root_get_res arg = { 0 };

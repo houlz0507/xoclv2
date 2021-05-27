@@ -19,6 +19,7 @@
 struct xuser_main {
 	struct xrt_device *xdev;
 	char *firmware_dtb;
+	int firmware_group_instance;
 	void *mailbox_hdl;
 };
 
@@ -45,31 +46,62 @@ static const struct attribute_group xuser_main_attrgroup = {
 	.attrs = xuser_main_attrs,
 };
 
+static int xuser_refresh_firmware(struct xuser_main *xum)
+{
+	struct xrt_device *xdev = xum->xdev;
+	char *dtb;
+	int ret;
+
+	ret = xuser_peer_get_metadata(xum->mailbox_hdl, &dtb);
+	if (ret) {
+		xrt_err(xdev, "failed to get metadata, ret %d", ret);
+		return ret;
+	}
+
+	if (xum->firmware_group_instance != XRT_INVALID_DEVICE_INST) {
+		ret = xleaf_destroy_group(xdev, xum->firmware_group_instance);
+		if (ret) {
+			xrt_err(xdev, "failed to remove current group %d, ret %d",
+				xum->firmware_group_instance, ret);
+			return ret;
+		}
+		xum->firmware_group_instance = XRT_INVALID_DEVICE_INST;
+
+		WARN_ON(!xum->firmware_dtb);
+		vfree(xum->firmware_dtb);
+		xum->firmware_dtb = NULL;
+	}
+
+	WARN_ON(xum->firmware_dtb);
+	if (dtb) {
+		ret = xleaf_create_group(xdev, dtb);
+		if (ret < 0) {
+			xrt_err(xdev, "failed to create group, ret %d", ret);
+			return ret;
+		}
+		xum->firmware_group_instance = ret;
+		xum->firmware_dtb = dtb;
+	}
+
+	return 0;
+}
+
 static void xuser_main_event_cb(struct xrt_device *xdev, void *arg)
 {
 	struct xrt_event *evt = (struct xrt_event *)arg;
 	struct xuser_main *xum = xrt_get_drvdata(xdev);
 	enum xrt_events e = evt->xe_evt;
 	enum xrt_subdev_id id;
-	char *dtb;
-	int ret;
 
 	id = evt->xe_subdev.xevt_subdev_id;
 	switch (e) {
 	case XRT_EVENT_POST_CREATION:
 		/* user driver finishes attaching, get its partition metadata */
-		if (id == XRT_ROOT) {
-			ret = xuser_peer_get_metadata(xum->mailbox_hdl, &dtb)
-			if (ret) {
-				xrt_err(xdev, "failed to get metadata, ret %d", ret);
-				break;
-			}
-			ret = xleaf_create_group(xdev, dtb);
-			if (ret < 0) {
-				xrt_err(xdev, "failed to create group, ret %d", ret);
-				break;
-			}
-		}
+		if (id == XRT_ROOT)
+			xuser_refresh_firmware(xum);
+		break;
+	case XRT_EVENT_PEER_ONLINE:
+		xuser_refresh_firmware(xum);
 		break;
 	default:
 		xrt_dbg(xdev, "ignored event %d", e);
@@ -88,6 +120,7 @@ static int xuser_main_probe(struct xrt_device *xdev)
 		return -ENOMEM;
 
 	xum->xdev = xdev;
+	xum->firmware_group_instance = XRT_INVALID_DEVICE_INST;
 	xrt_set_drvdata(xdev, xum);
 	xum->mailbox_hdl = xuser_mailbox_probe(xdev);
 
