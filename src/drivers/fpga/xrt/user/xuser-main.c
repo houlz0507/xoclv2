@@ -152,6 +152,13 @@ static int xuser_mainleaf_call(struct xrt_device *xdev, u32 cmd, void *arg)
 		xuser_mailbox_event_cb(xdev, arg);
 		xuser_main_event_cb(xdev, arg);
 		break;
+	case XRT_USER_MAIN_ALLOC_DMA_COHERENT: {
+		struct xrt_user_main_alloc_dma_coherent *alloc_arg =
+			(struct xrt_user_main_alloc_dma_coherent *)arg;
+
+		alloc_arg->buf_addr = dma_alloc_coherent(
+		break;
+	}
 	default:
 		xrt_err(xdev, "unknown cmd: %d", cmd);
 		ret = -EINVAL;

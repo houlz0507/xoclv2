@@ -31,6 +31,7 @@
 	dev_dbg(XUSER_DEV(xu), "%s: " fmt, __func__, ##args)
 
 #define XRT_VSEC_ID		0x20
+#define XRT_MAX_MRRS		512
 
 static struct class *xuser_class;
 
@@ -51,13 +52,56 @@ struct xuser {
 static int xuser_config_pci(struct xuser *xu)
 {
 	struct pci_dev *pdev = XUSER_PDEV(xu);
-	int rc;
+	int rc, nvec;
 
+	/* enable relaxed ordering */
+	pcie_capability_set_word(pdev, PCI_EXP_DEVCTL, PCI_EXP_DEVCTL_RELAX_EN);
+
+	/* enable extended tag */
+	pcie_capability_set_word(pdev, PCI_EXP_DEVCTL, PCI_EXP_DEVCTL_EXT_TAG);
+
+	/* set MRRS */
+	rc = pcie_get_readrq(pdev);
+	if (rc < 0) {
+		xuser_err(xu, "failed to read mrrs: %d", rc);
+		return rc;
+	}
+
+	if (rc > XRT_MAX_MRRS) {
+		rc = pcie_set_readrq(pdev, XRT_MAX_MRRS);
+		if (rc < 0) {
+			xuser_err(xu, "failed to set mrrs: %d", rc);
+			return rc;
+		}
+	}
+
+	rc = pci_set_dma_mask(pdev, DMA_BIT_MASK(64));
+	if (rc) {
+		xuser_err(xu, "failed to set dma mask: %d", rc);
+		return rc;
+	}
+
+	rc = pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(64));
+	if (rc) {
+		xuser_err(xu, "failed to set consistent_dma_mask: %d", rc);
+		return rc;
+	}
+
+	pci_set_master(pdev);
 	rc = pci_enable_device(pdev);
 	if (rc) {
 		xuser_err(xu, "failed to enable device: %d", rc);
 		return rc;
 	}
+
+	nvec = pci_msix_vec_count(pdev);
+	if (nvec <= 0) {
+		xuser_err(&xu, "msix is not supported: %d", nvec);
+		return -EINVAL;
+	}
+	rc = pci_alloc_irq_vectors(pdev, nvec, nvec, PCI_IRQ_MSIX);
+	if (rc < 0)
+		return ret;
 
 	return 0;
 }
@@ -135,9 +179,69 @@ static int xuser_root_get_resource(struct device *dev, struct xrt_root_get_res *
 	return 0;
 }
 
+static int xuser_root_default(struct device *dev, enum xrt_root_cmd cmd, void *arg)
+{
+	struct pci_dev *pdev = to_pci_dev(dev);
+	struct xuser *xu;
+	int ret;
+
+	xu = pci_get_drvdata(pdev);
+
+	switch (cmd) {
+	case XRT_ROOT_ALLOC_DMA_BUFFER: {
+		struct xrt_root_dma_buffer_req *req;
+
+		req = (struct xrt_root_dma_buffer_req *)arg;
+		if (req->xpidbr_coherent) {
+			req->xpidbr_buf = dma_alloc_coherent(&pdev->dev, req->xpidbr_size,
+							     &req->xpidbr_dma_handle, GFP_KERNEL);
+			if (!req->xpidbr_buf) {
+				xuser_err(xu, "failed to alloc coherence dma buffer");
+				ret = -ENOMEM;
+			}
+		}
+		break;
+	}
+	case XRT_ROOT_FREE_DMA_BUFFER: {
+		struct xrt_root_dma_buffer_req *req;
+
+		req = (struct xrt_root_dma_buffer_req *)arg;
+		if (req->xpidbr_coherent) {
+			dma_free_coherent(&pdev->dev, req->xpidbr_size, req->xpidbr_buf,
+					  req->xpidbr_dma_handle);
+		}
+		break;
+	}
+	case XRT_ROOT_REQUEST_IRQ: {
+		struct xrt_root_irq_req *req;
+
+		req = (struct xrt_root_irq_req *)arg;
+		ret = pci_request_irq(pdev, req->xpiir_vec_idx, req->xpiir_handler, NULL,
+				      req->xpiir_dev_id, req->xpiir_name);
+		if (ret)
+			xuser_err(xu, "failed to alloc vector: %d", ret);
+		break;
+	}
+	case XRT_ROOT_FREE_IRQ: {
+		struct xrt_root_irq_req *req;
+
+		req = (struct xrt_root_irq_req *)arg;
+		pci_free_irq(pdev, req->xpiir_vec_idx, req->xpiir_dev_id);
+		break;
+	}
+	default:
+		xuser_err(xu, "Invalid command %d", cmd);
+		ret = -EINVAL;
+		break;
+	}
+
+	return ret;
+}
+
 static struct xroot_physical_function_callback xuser_xroot_pf_cb = {
 	.xpc_get_id = xuser_root_get_id,
 	.xpc_get_resource = xuser_root_get_resource,
+	.xpc_default_cb = xuser_root_default,
 };
 
 static int xuser_probe(struct pci_dev *pdev, const struct pci_device_id *id)
@@ -196,6 +300,7 @@ static void xuser_remove(struct pci_dev *pdev)
 {
 	struct xuser *xu = pci_get_drvdata(pdev);
 
+	pci_free_irq_vectors(pdev);
 	xroot_broadcast(xu->root, XRT_EVENT_PRE_REMOVAL);
 	sysfs_remove_group(&pdev->dev.kobj, &xuser_root_attr_group);
 	xroot_remove(xu->root);

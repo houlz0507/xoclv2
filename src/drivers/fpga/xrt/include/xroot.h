@@ -43,7 +43,8 @@ enum xrt_root_cmd {
 	/* Misc. */
 	XRT_ROOT_HOT_RESET,
 	XRT_ROOT_HWMON,
-	XRT_ROOT_CONFIG_PCI,
+	XRT_ROOT_ALLOC_DMA_BUFFER,
+	XRT_ROOT_FREE_DMA_BUFFER,
 };
 
 struct xrt_root_get_leaf {
@@ -91,9 +92,18 @@ struct xrt_root_hwmon {
 	struct device *xpih_hwmon_dev;
 };
 
-struct xrt_root_config_pci {
-	u32 xpicp_opcode;
-	void *xpicp_data;
+struct xrt_root_dma_buffer_req {
+	bool xpidbr_coherent;
+	size_t xpidbr_size;
+	dma_addr_t xpidbr_dma_handle;
+	void *xpidbr_buf;
+};
+
+struct xrt_root_irq_req {
+	u32 xpiir_vec_idx;
+	void *xpiir_handler;
+	void *xpiir_dev_id;
+	char *xpiir_name;
 };
 
 /*
@@ -111,7 +121,7 @@ struct xroot_physical_function_callback {
 	void (*xpc_get_id)(struct device *dev, struct xrt_root_get_id *rid);
 	int (*xpc_get_resource)(struct device *dev, struct xrt_root_get_res *res);
 	void (*xpc_hot_reset)(struct device *dev);
-	int (*xpc_config_pci)(struct device *dev, struct xrt_root_config_pci *config);
+	int (*xpc_default_cb)(struct device *dev, enum xrt_root_cmd cmd, void *arg);
 };
 
 int xroot_probe(struct device *dev, struct xroot_physical_function_callback *cb, void **root);

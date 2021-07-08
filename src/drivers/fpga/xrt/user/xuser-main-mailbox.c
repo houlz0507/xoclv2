@@ -11,6 +11,7 @@
 #include <linux/io.h>
 #include <linux/xrt/mailbox_proto.h>
 #include <linux/mutex.h>
+#include <linux/slab.h>
 #include "xleaf.h"
 #include "xuser.h"
 #include "xleaf/mailbox.h"

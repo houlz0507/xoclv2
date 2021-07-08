@@ -164,7 +164,7 @@ struct device *xleaf_register_hwmon(struct xrt_device *xdev, const char *name, v
 				    const struct attribute_group **grps);
 void xleaf_unregister_hwmon(struct xrt_device *xdev, struct device *hwmon);
 int xleaf_wait_for_group_bringup(struct xrt_device *xdev);
-int xleaf_config_pci(struct xrt_device *xdev, void *arg);
+int xleaf_config(struct xrt_device *xdev, void *arg);
 
 /*
  * Character device helper APIs for use by leaf drivers
